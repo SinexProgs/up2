@@ -119,8 +119,8 @@ while True:
             last_name = input("Введите фамилию студента: ")
             middle_name = input("Введите отчество студента: ")
             group_number = int(input("Введите номер группы студента: "))
-            grades_str = input("Введите оценки студента (через пробел): ").split()
-            grades = (int(x) for x in grades_str)
+            grades = input("Введите оценки студента (через пробел): ").split()
+            grades = (int(x) for x in grades)
             add_student(first_name, last_name, middle_name, group_number, grades)
         case 2:
             print_all_students()
@@ -142,8 +142,8 @@ while True:
             elif edit_field == EditFields.group_number:
                 edit_student(id, edit_field, int(input("Введите номер группы: ")))
             else:
-                grades_str = input("Введите новые оценки (через пробел): ").split()
-                grades = (int(x) for x in grades_str)
+                grades = input("Введите новые оценки (через пробел): ").split()
+                grades = (int(x) for x in grades)
                 edit_student(id, edit_field, grades)
         case 5:
             delete_student(int(input("Введите ID студента: ")))
@@ -151,3 +151,5 @@ while True:
             print_group_avg_grade(int(input("Введите номер группы: ")))
         case 7:
             break
+        case _:
+            print("Неверная команда!")

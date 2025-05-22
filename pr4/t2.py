@@ -3,6 +3,7 @@ import sqlite3
 def add_new_ingredient(name, count):
     cursor.execute("INSERT INTO ingredients (name, count) VALUES (?, ?)", (name, count))
     connection.commit()
+    print(f"Ингредиент {name} ({count} штук) был добавлен в базу данных.")
 
 
 def add_new_drink(name, abv, cost, ingredients, count):
@@ -17,6 +18,8 @@ def add_new_drink(name, abv, cost, ingredients, count):
 
     connection.commit()
 
+    print(f"Напиток {name} ({cost} р., {count} штук) был добавлен в базу данных.")
+
 
 def add_new_cocktail(name, cost, composition):
     cursor.execute("INSERT INTO cocktails (name, cost) VALUES (?, ?)", (name, cost))
@@ -28,6 +31,8 @@ def add_new_cocktail(name, cost, composition):
     """, ((cocktail_id, x) for x in composition))
 
     connection.commit()
+
+    print(f"Коктейль {name} ({cost} р., {count} штук) был добавлен в базу данных.")
 
 
 def print_all_ingredients():
@@ -61,6 +66,7 @@ def print_all_cocktails():
 def restock_ingredient(id, count):
     cursor.execute("UPDATE ingredient SET count = count + ? WHERE id = ?", (count, id))
     connection.commit()
+    print(f"Запасы ингредиента под ID {id} были пополнены на {count} штук.")
 
 
 def make_drink(id, count):
@@ -83,19 +89,23 @@ def make_drink(id, count):
 
     connection.commit()
 
+    print(f"Запасы напитка под ID {id} были пополнены на {count} штук.")
+
 
 def sell_drink(id, count, money):
     change = money
     cursor.execute("SELECT cost * ? FROM drinks WHERE id = ?", (count, id))
-    change -= cursor.fetchone()
+    cost = cursor.fetchone()[0]
+    change -= cost
     if change < 0:
-        print(f"Для покупки нехватает {-change} рублей!")
+        print(f"Для покупки нехватает {-change} р.!")
         return money
     else:
         cursor.execute("BEGIN")
         try:
             cursor.execute("UPDATE drinks SET count = count - ? WHERE id = ?", (count, id))
             cursor.execute("COMMIT")
+            print(f"Напиток под ID {id} ({count} штук) был продан за {cost} р.")
         except connection.Error:
             print("Не хватает напитков!")
             cursor.execute("ROLLBACK")
@@ -108,9 +118,10 @@ def sell_drink(id, count, money):
 def sell_cocktail(id, count, money):
     change = money
     cursor.execute("SELECT cost * ? FROM cocktails WHERE id = ?", (count, id))
-    change -= cursor.fetchone()
+    cost = cursor.fetchone()[0]
+    change -= cost
     if change < 0:
-        print(f"Для покупки нехватает {-change} рублей!")
+        print(f"Для покупки нехватает {-change} р.!")
         return money
     else:
         cursor.execute("BEGIN")
@@ -123,9 +134,8 @@ def sell_cocktail(id, count, money):
                          WHERE cocktail_id = ?)
             """, (count, id))
 
-            cursor.execute("UPDATE cocktails SET count = count + ? WHERE id = ?", (count, id))
-
             cursor.execute("COMMIT")
+            print(f"Коктейль под ID {id} ({count} штук) был продан за {cost} р.")
         except connection.Error:
             print("Не хватает напитков!")
             cursor.execute("ROLLBACK")
@@ -183,3 +193,86 @@ CREATE TABLE IF NOT EXISTS cocktails_composition (
 	FOREIGN KEY (drink_id) REFERENCES drinks(id) ON DELETE CASCADE
 )
 """)
+
+print("I love drink")
+while True:
+    print()
+    print("Введите номер действия, которое хотите сделать:")
+    print("1. Добавить новый предмет в базу данных")
+    print("2. Посмотреть все предметы в базе данных")
+    print("3. Пополнить запасы")
+    print("4. Продать")
+    print("5. Закрыть приложение")
+    action = int(input("> "))
+    match action:
+        case 1:
+            print("Выберите что именно хотите добавить:")
+            print("1. Ингредиент")
+            print("2. Алкогольный напиток")
+            print("3. Коктейль")
+            type = int(input("> "))
+            match type:
+                case 1:
+                    name = input("Введите название ингредиента: ")
+                    count = int(input("Введите текущее количество ингредиента: "))
+                    add_new_ingredient(name, count)
+                case 2:
+                    name = input("Введите название напитка: ")
+                    abv = float(input("Введите крепость напитка: "))
+                    cost = float(input("Введите цену напитка: "))
+                    ingredients = input("Введите ID ингредиентов (через пробел): ").split()
+                    ingredients = (int(x) for x in ingredients)
+                    count = int(input("Введите текущее количество напитка: "))
+                    add_new_drink(name, abv, cost, ingredients, count)
+                case 3:
+                    name = input("Введите название коктейля: ")
+                    cost = float(input("Введите цену коктейля: "))
+                    composition = input("Введите ID напитков в составе (через пробел): ").split()
+                    composition = (int(x) for x in composition)
+                    add_new_cocktail(name, cost, composition)
+                case _:
+                    print("Неверная команда!")
+        case 2:
+            print("Выберите что именно хотите просмотреть:")
+            print("1. Ингредиенты")
+            print("2. Алкогольные напитки")
+            print("3. Коктейли")
+            type = int(input("> "))
+            match type:
+                case 1: print_all_ingredients()
+                case 2: print_all_drinks()
+                case 3: print_all_cocktails()
+                case _:
+                    print("Неверная команда!")
+        case 3:
+            print("Выберите запасы чего хотите пополнить:")
+            print("1. Ингредиентов")
+            print("2. Алкогольных напитков")
+            type = int(input("> "))
+            id = int(input("Введите ID: "))
+            count = int(input("Введите сколько нужно пополнить: "))
+            match type:
+                case 1: restock_ingredient(id, count)
+                case 2: make_drink(id, count)
+                case _:
+                    print("Неверная команда!")
+        case 4:
+            print("Выберите что именно хотите продать:")
+            print("1. Алкогольный напиток")
+            print("2. Коктейль")
+            type = int(input("> "))
+            id = int(input("Введите ID: "))
+            count = int(input("Введите сколько нужно продать: "))
+            money = float(input("Введите сумму денег, данную покупателем: "))
+            match type:
+                case 1: change = sell_drink(id, count, money)
+                case 2: change = sell_cocktail(id, count, money)
+                case _:
+                    change = money
+                    print("Неверная команда!")
+                    continue
+            print(f"Сдача: {change} р.")
+        case 5:
+            break
+        case _:
+            print("Неверная команда!")
