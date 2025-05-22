@@ -43,12 +43,14 @@ def print_all_drinks():
  - Крепость: {values[2]}%
  - Цена: {values[3]}""")
 
+
 def print_all_cocktails():
     cursor.execute("""
-    SELECT cocktails.id, cocktails.name, cocktails.cost, AVG(drinks.abv) 
-    FROM cocktails
-    LEFT JOIN cocktails_composition composition ON cocktails.id = composition.cocktail_id
-    LEFT JOIN drinks ON drinks.id = composition.drink_id
+    SELECT c.id, c.name, c.cost, AVG(d.abv) 
+    FROM cocktails c
+    LEFT JOIN cocktails_composition composition ON c.id = composition.cocktail_id
+    LEFT JOIN drinks d ON d.id = composition.drink_id
+    GROUP BY c.id
     """)
     for values in cursor.fetchall():
         print(f"""{values[0]}. {values[1]}:
@@ -56,7 +58,85 @@ def print_all_cocktails():
  - Цена: {values[2]}""")
 
 
+def restock_ingredient(id, count):
+    cursor.execute("UPDATE ingredient SET count = count + ? WHERE id = ?", (count, id))
+    connection.commit()
+
+
+def make_drink(id, count):
+    cursor.execute("BEGIN")
+    try:
+        cursor.execute("""
+        UPDATE ingredients
+        SET count = count - ?
+        WHERE id IN (SELECT ingredient_id
+                     FROM drinks_ingredients
+                     WHERE drink_id = ?)
+        """, (count, id))
+
+        cursor.execute("UPDATE drinks SET count = count + ? WHERE id = ?", (count, id))
+
+        cursor.execute("COMMIT")
+    except connection.Error:
+        print("Не хватает ингредиентов!")
+        cursor.execute("ROLLBACK")
+
+    connection.commit()
+
+
+def sell_drink(id, count, money):
+    change = money
+    cursor.execute("SELECT cost * ? FROM drinks WHERE id = ?", (count, id))
+    change -= cursor.fetchone()
+    if change < 0:
+        print(f"Для покупки нехватает {-change} рублей!")
+        return money
+    else:
+        cursor.execute("BEGIN")
+        try:
+            cursor.execute("UPDATE drinks SET count = count - ? WHERE id = ?", (count, id))
+            cursor.execute("COMMIT")
+        except connection.Error:
+            print("Не хватает напитков!")
+            cursor.execute("ROLLBACK")
+            change = money
+
+        connection.commit()
+        return change
+
+
+def sell_cocktail(id, count, money):
+    change = money
+    cursor.execute("SELECT cost * ? FROM cocktails WHERE id = ?", (count, id))
+    change -= cursor.fetchone()
+    if change < 0:
+        print(f"Для покупки нехватает {-change} рублей!")
+        return money
+    else:
+        cursor.execute("BEGIN")
+        try:
+            cursor.execute("""
+            UPDATE drinks
+            SET count = count - ?
+            WHERE id IN (SELECT drink_id
+                         FROM cocktails_composition
+                         WHERE cocktail_id = ?)
+            """, (count, id))
+
+            cursor.execute("UPDATE cocktails SET count = count + ? WHERE id = ?", (count, id))
+
+            cursor.execute("COMMIT")
+        except connection.Error:
+            print("Не хватает напитков!")
+            cursor.execute("ROLLBACK")
+            change = money
+
+        connection.commit()
+        return change
+
+
 connection = sqlite3.connect("i_love_drink.db")
+connection.isolation_level = None
 cursor = connection.cursor()
 
 cursor.execute("PRAGMA foreign_keys = ON")
@@ -64,7 +144,7 @@ cursor.execute("""
 CREATE TABLE IF NOT EXISTS ingredients (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	name TEXT,
-	count INTEGER
+	count INTEGER CHECK (count >= 0)
 )
 """)
 cursor.execute("""
@@ -73,7 +153,7 @@ CREATE TABLE IF NOT EXISTS drinks (
 	name TEXT,
 	abv REAL,
 	cost REAL,
-	count INTEGER
+	count INTEGER CHECK (count >= 0)
 )
 """)
 cursor.execute("""
